@@ -1,1 +1,709 @@
-{"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"name":"python","version":"3.10.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":285982,"sourceType":"datasetVersion","datasetId":6057}],"isInternetEnabled":false,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"markdown","source":"**This notebook is an exercise in the [SQL](https://www.kaggle.com/learn/intro-to-sql) course.  You can reference the tutorial at [this link](https://www.kaggle.com/dansbecker/group-by-having-count).**\n\n---\n","metadata":{}},{"cell_type":"markdown","source":"# Introduction\n\nQueries with **GROUP BY** can be powerful. There are many small things that can trip you up (like the order of the clauses), but it will start to feel natural once you've done it a few times. Here, you'll write queries using **GROUP BY** to answer questions from the Hacker News dataset.\n\nBefore you get started, run the following cell to set everything up:","metadata":{}},{"cell_type":"code","source":"# Set up feedback system\nfrom learntools.core import binder\nbinder.bind(globals())\nfrom learntools.sql.ex3 import *\nprint(\"Setup Complete\")","metadata":{"execution":{"iopub.status.busy":"2024-05-06T14:59:32.503032Z","iopub.execute_input":"2024-05-06T14:59:32.503453Z","iopub.status.idle":"2024-05-06T14:59:41.263661Z","shell.execute_reply.started":"2024-05-06T14:59:32.503422Z","shell.execute_reply":"2024-05-06T14:59:41.262521Z"},"trusted":true},"execution_count":1,"outputs":[{"name":"stdout","text":"Using Kaggle's public dataset BigQuery integration.\nSetup Complete\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The code cell below fetches the `full` table from the `hacker_news` dataset.  We also preview the first five rows of the table.","metadata":{}},{"cell_type":"code","source":"from google.cloud import bigquery\n\n# Create a \"Client\" object\nclient = bigquery.Client()\n\n# Construct a reference to the \"hacker_news\" dataset\ndataset_ref = client.dataset(\"hacker_news\", project=\"bigquery-public-data\")\n\n# API request - fetch the dataset\ndataset = client.get_dataset(dataset_ref)\n\n# Construct a reference to the \"full\" table\ntable_ref = dataset_ref.table(\"full\")\n\n# API request - fetch the table\ntable = client.get_table(table_ref)\n\n# Preview the first five lines of the table\nclient.list_rows(table, max_results=5).to_dataframe()","metadata":{"execution":{"iopub.status.busy":"2024-05-06T14:59:41.266050Z","iopub.execute_input":"2024-05-06T14:59:41.267037Z","iopub.status.idle":"2024-05-06T14:59:42.439226Z","shell.execute_reply.started":"2024-05-06T14:59:41.266993Z","shell.execute_reply":"2024-05-06T14:59:42.438461Z"},"trusted":true},"execution_count":2,"outputs":[{"name":"stdout","text":"Using Kaggle's public dataset BigQuery integration.\n","output_type":"stream"},{"execution_count":2,"output_type":"execute_result","data":{"text/plain":"  title   url                                               text  dead  \\\n0  None  None  If the crocodile looked him up on Google, we b...  None   \n1  None  None  What exactly are you looking for? I think Pyto...  None   \n2  None  None  Ironically, this very project might help out w...  None   \n3  None  None  As you start to gain some experience it can be...  None   \n4  None  None  That’s what I was referring to, yes. I heard o...  None   \n\n            by  score        time                 timestamp     type  \\\n0    raxxorrax    NaN  1633421535 2021-10-05 08:12:15+00:00  comment   \n1        abiro    NaN  1569141387 2019-09-22 08:36:27+00:00  comment   \n2      mjevans    NaN  1505769703 2017-09-18 21:21:43+00:00  comment   \n3  every_other    NaN  1538575027 2018-10-03 13:57:07+00:00  comment   \n4       manmal    NaN  1615664155 2021-03-13 19:35:55+00:00  comment   \n\n         id    parent  descendants  ranking deleted  \n0  28756662  28750122          NaN      NaN    None  \n1  21040311  21040141          NaN      NaN    None  \n2  15279716  15276626          NaN      NaN    None  \n3  18130207  18128477          NaN      NaN    None  \n4  26449260  26449237          NaN      NaN    None  ","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>title</th>\n      <th>url</th>\n      <th>text</th>\n      <th>dead</th>\n      <th>by</th>\n      <th>score</th>\n      <th>time</th>\n      <th>timestamp</th>\n      <th>type</th>\n      <th>id</th>\n      <th>parent</th>\n      <th>descendants</th>\n      <th>ranking</th>\n      <th>deleted</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>0</th>\n      <td>None</td>\n      <td>None</td>\n      <td>If the crocodile looked him up on Google, we b...</td>\n      <td>None</td>\n      <td>raxxorrax</td>\n      <td>NaN</td>\n      <td>1633421535</td>\n      <td>2021-10-05 08:12:15+00:00</td>\n      <td>comment</td>\n      <td>28756662</td>\n      <td>28750122</td>\n      <td>NaN</td>\n      <td>NaN</td>\n      <td>None</td>\n    </tr>\n    <tr>\n      <th>1</th>\n      <td>None</td>\n      <td>None</td>\n      <td>What exactly are you looking for? I think Pyto...</td>\n      <td>None</td>\n      <td>abiro</td>\n      <td>NaN</td>\n      <td>1569141387</td>\n      <td>2019-09-22 08:36:27+00:00</td>\n      <td>comment</td>\n      <td>21040311</td>\n      <td>21040141</td>\n      <td>NaN</td>\n      <td>NaN</td>\n      <td>None</td>\n    </tr>\n    <tr>\n      <th>2</th>\n      <td>None</td>\n      <td>None</td>\n      <td>Ironically, this very project might help out w...</td>\n      <td>None</td>\n      <td>mjevans</td>\n      <td>NaN</td>\n      <td>1505769703</td>\n      <td>2017-09-18 21:21:43+00:00</td>\n      <td>comment</td>\n      <td>15279716</td>\n      <td>15276626</td>\n      <td>NaN</td>\n      <td>NaN</td>\n      <td>None</td>\n    </tr>\n    <tr>\n      <th>3</th>\n      <td>None</td>\n      <td>None</td>\n      <td>As you start to gain some experience it can be...</td>\n      <td>None</td>\n      <td>every_other</td>\n      <td>NaN</td>\n      <td>1538575027</td>\n      <td>2018-10-03 13:57:07+00:00</td>\n      <td>comment</td>\n      <td>18130207</td>\n      <td>18128477</td>\n      <td>NaN</td>\n      <td>NaN</td>\n      <td>None</td>\n    </tr>\n    <tr>\n      <th>4</th>\n      <td>None</td>\n      <td>None</td>\n      <td>That’s what I was referring to, yes. I heard o...</td>\n      <td>None</td>\n      <td>manmal</td>\n      <td>NaN</td>\n      <td>1615664155</td>\n      <td>2021-03-13 19:35:55+00:00</td>\n      <td>comment</td>\n      <td>26449260</td>\n      <td>26449237</td>\n      <td>NaN</td>\n      <td>NaN</td>\n      <td>None</td>\n    </tr>\n  </tbody>\n</table>\n</div>"},"metadata":{}}]},{"cell_type":"markdown","source":"# Exercises\n\n### 1) Prolific commenters\n\nHacker News would like to send awards to everyone who has written more than 10,000 posts. Write a query that returns all authors with more than 10,000 posts as well as their post counts. Call the column with post counts `NumPosts`.\n\nIn case sample query is helpful, here is a query you saw in the tutorial to answer a similar question:\n```\nquery = \"\"\"\n        SELECT parent, COUNT(1) AS NumPosts\n        FROM `bigquery-public-data.hacker_news.full`\n        GROUP BY parent\n        HAVING COUNT(1) > 10\n        \"\"\"\n```","metadata":{}},{"cell_type":"code","source":"# Query to select prolific commenters and post counts\nprolific_commenters_query = \"\"\"\n        SELECT `by` AS author, COUNT(1) AS NumPosts\n        FROM `bigquery-public-data.hacker_news.full`\n        GROUP BY `by`\n        HAVING COUNT(1)>10000\"\"\" # Your code goes here\n\n# Set up the query (cancel the query if it would use too much of \n# your quota, with the limit set to 1 GB)\nsafe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)\nquery_job = client.query(prolific_commenters_query, job_config=safe_config)\n\n# API request - run the query, and return a pandas DataFrame\nprolific_commenters = query_job.to_dataframe()\n\n# View top few rows of results\nprint(prolific_commenters.head())\n\n# Check your answer\nq_1.check()","metadata":{"execution":{"iopub.status.busy":"2024-05-06T15:04:05.063537Z","iopub.execute_input":"2024-05-06T15:04:05.063919Z","iopub.status.idle":"2024-05-06T15:04:07.121506Z","shell.execute_reply.started":"2024-05-06T15:04:05.063890Z","shell.execute_reply":"2024-05-06T15:04:07.119609Z"},"trusted":true},"execution_count":9,"outputs":[{"name":"stdout","text":"       author  NumPosts\n0      derefr     11806\n1       pjmlp     43943\n2  imtringued     10019\n3     ekianjo     11104\n4      ncmncm     12105\n","output_type":"stream"},{"output_type":"display_data","data":{"text/plain":"<IPython.core.display.Javascript object>","application/javascript":"parent.postMessage({\"jupyterEvent\": \"custom.exercise_interaction\", \"data\": {\"outcomeType\": 1, \"valueTowardsCompletion\": 0.5, \"interactionType\": 1, \"questionType\": 2, \"questionId\": \"1_ProlificCommenters\", \"learnToolsVersion\": \"0.3.4\", \"failureMessage\": \"\", \"exceptionClass\": \"\", \"trace\": \"\"}}, \"*\")"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"Correct","text/markdown":"<span style=\"color:#33cc33\">Correct</span>"},"metadata":{}}]},{"cell_type":"markdown","source":"For the solution, uncomment the line below.","metadata":{}},{"cell_type":"code","source":"#q_1.solution()","metadata":{},"execution_count":null,"outputs":[]},{"cell_type":"markdown","source":"### 2) Deleted comments\n\nHow many comments have been deleted? (If a comment was deleted, the `deleted` column in the table will have the value `True`.)","metadata":{}},{"cell_type":"code","source":"# Write your query here and figure out the answer\ndeleted_query = \"\"\"\n        SELECT deleted, COUNT(1) AS NumPosts\n        FROM `bigquery-public-data.hacker_news.full`\n        WHERE deleted\n        GROUP BY deleted\"\"\"\n\n# Set up the query (cancel the query if it would use too much of \n# your quota, with the limit set to 1 GB)\nsafe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)\nquery_job = client.query(deleted_query, job_config=safe_config)\n\n# API request - run the query, and return a pandas DataFrame\ndeleted_comments = query_job.to_dataframe()\n\n# View top few rows of results\nprint(deleted_comments.head())\n","metadata":{"execution":{"iopub.status.busy":"2024-05-06T15:07:33.121891Z","iopub.execute_input":"2024-05-06T15:07:33.122296Z","iopub.status.idle":"2024-05-06T15:07:35.114126Z","shell.execute_reply.started":"2024-05-06T15:07:33.122267Z","shell.execute_reply":"2024-05-06T15:07:35.113216Z"},"trusted":true},"execution_count":16,"outputs":[{"name":"stdout","text":"   deleted  NumPosts\n0     True    859401\n","output_type":"stream"}]},{"cell_type":"code","source":"num_deleted_posts = 859401 # Put your answer here\n\n# Check your answer\nq_2.check()","metadata":{"execution":{"iopub.status.busy":"2024-05-06T15:07:47.585276Z","iopub.execute_input":"2024-05-06T15:07:47.585764Z","iopub.status.idle":"2024-05-06T15:07:47.595357Z","shell.execute_reply.started":"2024-05-06T15:07:47.585732Z","shell.execute_reply":"2024-05-06T15:07:47.593847Z"},"trusted":true},"execution_count":17,"outputs":[{"output_type":"display_data","data":{"text/plain":"<IPython.core.display.Javascript object>","application/javascript":"parent.postMessage({\"jupyterEvent\": \"custom.exercise_interaction\", \"data\": {\"outcomeType\": 1, \"valueTowardsCompletion\": 0.5, \"interactionType\": 1, \"questionType\": 1, \"questionId\": \"2_NumDeletedPosts\", \"learnToolsVersion\": \"0.3.4\", \"failureMessage\": \"\", \"exceptionClass\": \"\", \"trace\": \"\"}}, \"*\")"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"Correct","text/markdown":"<span style=\"color:#33cc33\">Correct</span>"},"metadata":{}}]},{"cell_type":"markdown","source":"For the solution, uncomment the line below.","metadata":{}},{"cell_type":"code","source":"#q_2.solution()","metadata":{},"execution_count":null,"outputs":[]},{"cell_type":"markdown","source":"# Keep Going\n**[Click here](https://www.kaggle.com/dansbecker/order-by)** to move on and learn about the **ORDER BY** clause.","metadata":{}},{"cell_type":"markdown","source":"---\n\n\n\n\n*Have questions or comments? Visit the [course discussion forum](https://www.kaggle.com/learn/intro-to-sql/discussion) to chat with other learners.*","metadata":{}}]}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "4341adc4",
+   "metadata": {
+    "papermill": {
+     "duration": 0.005024,
+     "end_time": "2024-05-15T14:22:52.562732",
+     "exception": false,
+     "start_time": "2024-05-15T14:22:52.557708",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "**This notebook is an exercise in the [SQL](https://www.kaggle.com/learn/intro-to-sql) course.  You can reference the tutorial at [this link](https://www.kaggle.com/dansbecker/group-by-having-count).**\n",
+    "\n",
+    "---\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e38223ad",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004027,
+     "end_time": "2024-05-15T14:22:52.571284",
+     "exception": false,
+     "start_time": "2024-05-15T14:22:52.567257",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "# Introduction\n",
+    "\n",
+    "Queries with **GROUP BY** can be powerful. There are many small things that can trip you up (like the order of the clauses), but it will start to feel natural once you've done it a few times. Here, you'll write queries using **GROUP BY** to answer questions from the Hacker News dataset.\n",
+    "\n",
+    "Before you get started, run the following cell to set everything up:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "43b7c3d6",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:22:52.581576Z",
+     "iopub.status.busy": "2024-05-15T14:22:52.580829Z",
+     "iopub.status.idle": "2024-05-15T14:22:59.493462Z",
+     "shell.execute_reply": "2024-05-15T14:22:59.491978Z"
+    },
+    "papermill": {
+     "duration": 6.920778,
+     "end_time": "2024-05-15T14:22:59.495956",
+     "exception": false,
+     "start_time": "2024-05-15T14:22:52.575178",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Using Kaggle's public dataset BigQuery integration.\n",
+      "Setup Complete\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Set up feedback system\n",
+    "from learntools.core import binder\n",
+    "binder.bind(globals())\n",
+    "from learntools.sql.ex3 import *\n",
+    "print(\"Setup Complete\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "98ef1180",
+   "metadata": {
+    "papermill": {
+     "duration": 0.003765,
+     "end_time": "2024-05-15T14:22:59.504115",
+     "exception": false,
+     "start_time": "2024-05-15T14:22:59.500350",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The code cell below fetches the `full` table from the `hacker_news` dataset.  We also preview the first five rows of the table."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "05e58e9a",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:22:59.514330Z",
+     "iopub.status.busy": "2024-05-15T14:22:59.513233Z",
+     "iopub.status.idle": "2024-05-15T14:23:00.427663Z",
+     "shell.execute_reply": "2024-05-15T14:23:00.426823Z"
+    },
+    "papermill": {
+     "duration": 0.922165,
+     "end_time": "2024-05-15T14:23:00.430196",
+     "exception": false,
+     "start_time": "2024-05-15T14:22:59.508031",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Using Kaggle's public dataset BigQuery integration.\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>title</th>\n",
+       "      <th>url</th>\n",
+       "      <th>text</th>\n",
+       "      <th>dead</th>\n",
+       "      <th>by</th>\n",
+       "      <th>score</th>\n",
+       "      <th>time</th>\n",
+       "      <th>timestamp</th>\n",
+       "      <th>type</th>\n",
+       "      <th>id</th>\n",
+       "      <th>parent</th>\n",
+       "      <th>descendants</th>\n",
+       "      <th>ranking</th>\n",
+       "      <th>deleted</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "      <td>If the crocodile looked him up on Google, we b...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>raxxorrax</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>1633421535</td>\n",
+       "      <td>2021-10-05 08:12:15+00:00</td>\n",
+       "      <td>comment</td>\n",
+       "      <td>28756662</td>\n",
+       "      <td>28750122</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "      <td>What exactly are you looking for? I think Pyto...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>abiro</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>1569141387</td>\n",
+       "      <td>2019-09-22 08:36:27+00:00</td>\n",
+       "      <td>comment</td>\n",
+       "      <td>21040311</td>\n",
+       "      <td>21040141</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "      <td>Ironically, this very project might help out w...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>mjevans</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>1505769703</td>\n",
+       "      <td>2017-09-18 21:21:43+00:00</td>\n",
+       "      <td>comment</td>\n",
+       "      <td>15279716</td>\n",
+       "      <td>15276626</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "      <td>As you start to gain some experience it can be...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>every_other</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>1538575027</td>\n",
+       "      <td>2018-10-03 13:57:07+00:00</td>\n",
+       "      <td>comment</td>\n",
+       "      <td>18130207</td>\n",
+       "      <td>18128477</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>None</td>\n",
+       "      <td>None</td>\n",
+       "      <td>That’s what I was referring to, yes. I heard o...</td>\n",
+       "      <td>None</td>\n",
+       "      <td>manmal</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>1615664155</td>\n",
+       "      <td>2021-03-13 19:35:55+00:00</td>\n",
+       "      <td>comment</td>\n",
+       "      <td>26449260</td>\n",
+       "      <td>26449237</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>None</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "  title   url                                               text  dead  \\\n",
+       "0  None  None  If the crocodile looked him up on Google, we b...  None   \n",
+       "1  None  None  What exactly are you looking for? I think Pyto...  None   \n",
+       "2  None  None  Ironically, this very project might help out w...  None   \n",
+       "3  None  None  As you start to gain some experience it can be...  None   \n",
+       "4  None  None  That’s what I was referring to, yes. I heard o...  None   \n",
+       "\n",
+       "            by  score        time                 timestamp     type  \\\n",
+       "0    raxxorrax    NaN  1633421535 2021-10-05 08:12:15+00:00  comment   \n",
+       "1        abiro    NaN  1569141387 2019-09-22 08:36:27+00:00  comment   \n",
+       "2      mjevans    NaN  1505769703 2017-09-18 21:21:43+00:00  comment   \n",
+       "3  every_other    NaN  1538575027 2018-10-03 13:57:07+00:00  comment   \n",
+       "4       manmal    NaN  1615664155 2021-03-13 19:35:55+00:00  comment   \n",
+       "\n",
+       "         id    parent  descendants  ranking deleted  \n",
+       "0  28756662  28750122          NaN      NaN    None  \n",
+       "1  21040311  21040141          NaN      NaN    None  \n",
+       "2  15279716  15276626          NaN      NaN    None  \n",
+       "3  18130207  18128477          NaN      NaN    None  \n",
+       "4  26449260  26449237          NaN      NaN    None  "
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from google.cloud import bigquery\n",
+    "\n",
+    "# Create a \"Client\" object\n",
+    "client = bigquery.Client()\n",
+    "\n",
+    "# Construct a reference to the \"hacker_news\" dataset\n",
+    "dataset_ref = client.dataset(\"hacker_news\", project=\"bigquery-public-data\")\n",
+    "\n",
+    "# API request - fetch the dataset\n",
+    "dataset = client.get_dataset(dataset_ref)\n",
+    "\n",
+    "# Construct a reference to the \"full\" table\n",
+    "table_ref = dataset_ref.table(\"full\")\n",
+    "\n",
+    "# API request - fetch the table\n",
+    "table = client.get_table(table_ref)\n",
+    "\n",
+    "# Preview the first five lines of the table\n",
+    "client.list_rows(table, max_results=5).to_dataframe()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "1a7a3091",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004542,
+     "end_time": "2024-05-15T14:23:00.439324",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:00.434782",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "# Exercises\n",
+    "\n",
+    "### 1) Prolific commenters\n",
+    "\n",
+    "Hacker News would like to send awards to everyone who has written more than 10,000 posts. Write a query that returns all authors with more than 10,000 posts as well as their post counts. Call the column with post counts `NumPosts`.\n",
+    "\n",
+    "In case sample query is helpful, here is a query you saw in the tutorial to answer a similar question:\n",
+    "```\n",
+    "query = \"\"\"\n",
+    "        SELECT parent, COUNT(1) AS NumPosts\n",
+    "        FROM `bigquery-public-data.hacker_news.full`\n",
+    "        GROUP BY parent\n",
+    "        HAVING COUNT(1) > 10\n",
+    "        \"\"\"\n",
+    "```"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "2d148668",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:23:00.450567Z",
+     "iopub.status.busy": "2024-05-15T14:23:00.449853Z",
+     "iopub.status.idle": "2024-05-15T14:23:02.977017Z",
+     "shell.execute_reply": "2024-05-15T14:23:02.975944Z"
+    },
+    "papermill": {
+     "duration": 2.535212,
+     "end_time": "2024-05-15T14:23:02.979258",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:00.444046",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "     author  NumPosts\n",
+      "0  masklinn     14922\n",
+      "1     gruez     10013\n",
+      "2     sp332     16489\n",
+      "3   wpietri     10718\n",
+      "4   jonbaer     12046\n"
+     ]
+    },
+    {
+     "data": {
+      "application/javascript": [
+       "parent.postMessage({\"jupyterEvent\": \"custom.exercise_interaction\", \"data\": {\"outcomeType\": 1, \"valueTowardsCompletion\": 0.5, \"interactionType\": 1, \"questionType\": 2, \"questionId\": \"1_ProlificCommenters\", \"learnToolsVersion\": \"0.3.4\", \"failureMessage\": \"\", \"exceptionClass\": \"\", \"trace\": \"\"}}, \"*\")"
+      ],
+      "text/plain": [
+       "<IPython.core.display.Javascript object>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/markdown": [
+       "<span style=\"color:#33cc33\">Correct</span>"
+      ],
+      "text/plain": [
+       "Correct"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "# Query to select prolific commenters and post counts\n",
+    "prolific_commenters_query = \"\"\"\n",
+    "        SELECT `by` AS author, COUNT(1) AS NumPosts\n",
+    "        FROM `bigquery-public-data.hacker_news.full`\n",
+    "        GROUP BY `by`\n",
+    "        HAVING COUNT(1)>10000\"\"\" # Your code goes here\n",
+    "\n",
+    "# Set up the query (cancel the query if it would use too much of \n",
+    "# your quota, with the limit set to 1 GB)\n",
+    "safe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)\n",
+    "query_job = client.query(prolific_commenters_query, job_config=safe_config)\n",
+    "\n",
+    "# API request - run the query, and return a pandas DataFrame\n",
+    "prolific_commenters = query_job.to_dataframe()\n",
+    "\n",
+    "# View top few rows of results\n",
+    "print(prolific_commenters.head())\n",
+    "\n",
+    "# Check your answer\n",
+    "q_1.check()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5b664b62",
+   "metadata": {
+    "papermill": {
+     "duration": 0.00533,
+     "end_time": "2024-05-15T14:23:02.989610",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:02.984280",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "For the solution, uncomment the line below."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "58121e78",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:23:03.001796Z",
+     "iopub.status.busy": "2024-05-15T14:23:03.000766Z",
+     "iopub.status.idle": "2024-05-15T14:23:03.007357Z",
+     "shell.execute_reply": "2024-05-15T14:23:03.006197Z"
+    },
+    "papermill": {
+     "duration": 0.015322,
+     "end_time": "2024-05-15T14:23:03.009837",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:02.994515",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#q_1.solution()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b153712c",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004588,
+     "end_time": "2024-05-15T14:23:03.019670",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:03.015082",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "### 2) Deleted comments\n",
+    "\n",
+    "How many comments have been deleted? (If a comment was deleted, the `deleted` column in the table will have the value `True`.)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "acd96c83",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:23:03.031751Z",
+     "iopub.status.busy": "2024-05-15T14:23:03.031048Z",
+     "iopub.status.idle": "2024-05-15T14:23:04.684849Z",
+     "shell.execute_reply": "2024-05-15T14:23:04.683485Z"
+    },
+    "papermill": {
+     "duration": 1.66316,
+     "end_time": "2024-05-15T14:23:04.687603",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:03.024443",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "   deleted  NumPosts\n",
+      "0     True    859401\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Write your query here and figure out the answer\n",
+    "deleted_query = \"\"\"\n",
+    "        SELECT deleted, COUNT(1) AS NumPosts\n",
+    "        FROM `bigquery-public-data.hacker_news.full`\n",
+    "        WHERE deleted\n",
+    "        GROUP BY deleted\"\"\"\n",
+    "\n",
+    "# Set up the query (cancel the query if it would use too much of \n",
+    "# your quota, with the limit set to 1 GB)\n",
+    "safe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)\n",
+    "query_job = client.query(deleted_query, job_config=safe_config)\n",
+    "\n",
+    "# API request - run the query, and return a pandas DataFrame\n",
+    "deleted_comments = query_job.to_dataframe()\n",
+    "\n",
+    "# View top few rows of results\n",
+    "print(deleted_comments.head())\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "04c2e805",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:23:04.702170Z",
+     "iopub.status.busy": "2024-05-15T14:23:04.701426Z",
+     "iopub.status.idle": "2024-05-15T14:23:04.710869Z",
+     "shell.execute_reply": "2024-05-15T14:23:04.709687Z"
+    },
+    "papermill": {
+     "duration": 0.020424,
+     "end_time": "2024-05-15T14:23:04.713321",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:04.692897",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "application/javascript": [
+       "parent.postMessage({\"jupyterEvent\": \"custom.exercise_interaction\", \"data\": {\"outcomeType\": 1, \"valueTowardsCompletion\": 0.5, \"interactionType\": 1, \"questionType\": 1, \"questionId\": \"2_NumDeletedPosts\", \"learnToolsVersion\": \"0.3.4\", \"failureMessage\": \"\", \"exceptionClass\": \"\", \"trace\": \"\"}}, \"*\")"
+      ],
+      "text/plain": [
+       "<IPython.core.display.Javascript object>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/markdown": [
+       "<span style=\"color:#33cc33\">Correct</span>"
+      ],
+      "text/plain": [
+       "Correct"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "num_deleted_posts = 859401 # Put your answer here\n",
+    "\n",
+    "# Check your answer\n",
+    "q_2.check()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c1daf310",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004848,
+     "end_time": "2024-05-15T14:23:04.723708",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:04.718860",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "For the solution, uncomment the line below."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "e869bc24",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-05-15T14:23:04.737281Z",
+     "iopub.status.busy": "2024-05-15T14:23:04.736526Z",
+     "iopub.status.idle": "2024-05-15T14:23:04.740987Z",
+     "shell.execute_reply": "2024-05-15T14:23:04.740229Z"
+    },
+    "papermill": {
+     "duration": 0.014226,
+     "end_time": "2024-05-15T14:23:04.743045",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:04.728819",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#q_2.solution()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "af117f03",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004797,
+     "end_time": "2024-05-15T14:23:04.752890",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:04.748093",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "# Keep Going\n",
+    "**[Click here](https://www.kaggle.com/dansbecker/order-by)** to move on and learn about the **ORDER BY** clause."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "91df575f",
+   "metadata": {
+    "papermill": {
+     "duration": 0.004943,
+     "end_time": "2024-05-15T14:23:04.763187",
+     "exception": false,
+     "start_time": "2024-05-15T14:23:04.758244",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "---\n",
+    "\n",
+    "\n",
+    "\n",
+    "\n",
+    "*Have questions or comments? Visit the [course discussion forum](https://www.kaggle.com/learn/intro-to-sql/discussion) to chat with other learners.*"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "datasetId": 6057,
+     "sourceId": 285982,
+     "sourceType": "datasetVersion"
+    }
+   ],
+   "isGpuEnabled": false,
+   "isInternetEnabled": false,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 15.749875,
+   "end_time": "2024-05-15T14:23:05.489941",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2024-05-15T14:22:49.740066",
+   "version": "2.5.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
